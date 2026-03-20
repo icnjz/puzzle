@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拼图游戏</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0a0a1a;
+  color: #e0e0e0;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ===== 导航 ===== */
+.navbar {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #2a2a4a;
+  box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+}
+.navbar h1 {
+  font-size: 22px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+}
+
+/* ===== 按钮 ===== */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn-primary {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+.btn-help {
+  background: linear-gradient(135deg, #f093fb, #f5576c);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);
+}
+.btn-help:disabled {
+  background: #333; color: #666;
+  box-shadow: none; cursor: not-allowed; transform: none;
+}
+.btn-back {
+  background: rgba(255,255,255,0.1);
+  color: #ccc;
+  border: 1px solid #444;
+}
+
+/* ===== 上传 ===== */
+.upload-zone {
+  max-width: 600px;
+  margin: 30px auto;
+  padding: 40px;
+  border: 2px dashed #444;
+  border-radius: 16px;
+  text-align: center;
+  transition: all 0.3s;
+  cursor: pointer;
+  background: rgba(255,255,255,0.02);
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+}
+.upload-zone input { display: none; }
+.upload-icon { font-size: 48px; margin-bottom: 12px; }
+.upload-text { color: #888; font-size: 14px; margin-top: 8px; }
+
+/* ===== 图库 ===== */
+.gallery {
+  max-width: 1200px;
+  margin: 20px auto;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+.gallery-item {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  aspect-ratio: 1;
+}
+.gallery-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
+  border-color: #667eea;
+}
+.gallery-item img {
+  width: 100%; height: 100%; object-fit: cover;
+  filter: blur(20px) brightness(0.5);
+  transition: filter 0.5s;
+}
+.gallery-item.unlocked img { filter: none; }
+.gallery-item .lock-overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.4);
+  font-size: 36px;
+  transition: opacity 0.3s;
+}
+.gallery-item.unlocked .lock-overlay { opacity: 0; pointer-events: none; }
+.lock-label { font-size: 12px; color: #aaa; margin-top: 4px; }
+
+/* ===== 页面切换 ===== */
+.puzzle-page { display: none; }
+.puzzle-page.active { display: flex; flex-direction: column; height: 100vh; }
+.gallery-page.hidden { display: none; }
+
+/* ===== 拼图头部 ===== */
+.puzzle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-bottom: 1px solid #2a2a4a;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.puzzle-info {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.puzzle-stat { font-size: 14px; color: #aaa; }
+.puzzle-stat span { color: #667eea; font-weight: 700; font-size: 18px; }
+
+.progress-bar {
+  width: 180px; height: 8px;
+  background: #222; border-radius: 4px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 4px; transition: width 0.3s; width: 0%;
+}
+
+/* ===== 拼图板 ===== */
+.puzzle-wrapper {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.puzzle-board {
+  display: grid;
+  border: 2px solid #333;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #111;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+
+.puzzle-cell {
+  position: relative;
+  cursor: pointer;
+  background-size: cover;
+  background-repeat: no-repeat;
+  transition: transform 0.15s, box-shadow 0.15s;
+  border: 0.5px solid rgba(0,0,0,0.3);
+}
+.puzzle-cell:hover {
+  z-index: 2;
+  transform: scale(1.05);
+  box-shadow: 0 0 8px rgba(102,126,234,0.4);
+}
+.puzzle-cell.selected {
+  z-index: 3;
+  transform: scale(1.08);
+  box-shadow: 0 0 0 3px #f5576c, 0 0 16px rgba(245, 87, 108, 0.5);
+}
+.puzzle-cell.correct {
+  border-color: rgba(102, 234, 130, 0.3);
+  cursor: default;
+}
+.puzzle-cell.correct:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* 交换动画 */
+@keyframes swapPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.85); }
+  100% { transform: scale(1); }
+}
+.puzzle-cell.swapping {
+  animation: swapPop 0.3s ease;
+}
+
+/* ===== 弹窗 ===== */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.8); z-index: 1000;
+  justify-content: center; align-items: center;
+  backdrop-filter: blur(8px);
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: #1a1a2e; border: 1px solid #2a2a4a;
+  border-radius: 20px; padding: 40px; text-align: center;
+  max-width: 500px; width: 90%;
+  animation: modalIn 0.4s ease;
+}
+@keyframes modalIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.modal h2 {
+  font-size: 28px; margin-bottom: 12px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.modal p { color: #aaa; margin-bottom: 24px; }
+.modal img {
+  width: 100%; border-radius: 12px; margin-bottom: 20px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+/* 预览 */
+.preview-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85); z-index: 1000;
+  justify-content: center; align-items: center;
+  backdrop-filter: blur(8px); cursor: pointer;
+}
+.preview-overlay.active { display: flex; }
+.preview-overlay img {
+  max-width: 90vw; max-height: 90vh; border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 30px; left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: #667eea; color: #fff;
+  padding: 12px 24px; border-radius: 8px;
+  font-size: 14px; font-weight: 600; z-index: 2000;
+  transition: transform 0.3s;
+  box-shadow: 0 4px 20px rgba(102,126,234,0.4);
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* 参考图 */
+.ref-toggle {
+  width: 44px; height: 44px;
+  border-radius: 8px; border: 1px solid #444;
+  object-fit: cover; cursor: pointer;
+  filter: blur(3px) brightness(0.6);
+  transition: all 0.3s;
+}
+.ref-toggle:hover { filter: none; border-color: #667eea; }
+
+@media (max-width: 600px) {
+  .puzzle-header { padding: 8px 12px; }
+  .puzzle-info { gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== 图库页面 ===== -->
+<div class="gallery-page" id="galleryPage">
+  <nav class="navbar">
+    <h1>Puzzle Gallery</h1>
+    <label class="btn btn-primary">
+      + 上传图片
+      <input type="file" accept="image/*" multiple id="fileInput" style="display:none">
+    </label>
+  </nav>
+  <div class="upload-zone" id="dropZone">
+    <div class="upload-icon">📁</div>
+    <div>拖拽图片到此处上传</div>
+    <div class="upload-text">支持 JPG / PNG / GIF / WEBP，最大 20MB</div>
+  </div>
+  <div class="gallery" id="gallery"></div>
+</div>
+
+<!-- ===== 拼图页面 ===== -->
+<div class="puzzle-page" id="puzzlePage">
+  <div class="puzzle-header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-back" onclick="backToGallery()">← 返回</button>
+      <img class="ref-toggle" id="refThumb" title="悬停查看原图">
+    </div>
+    <div class="puzzle-info">
+      <div class="puzzle-stat">正确 <span id="correctCount">0</span>/256</div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="puzzle-stat">交换 <span id="swapCount">0</span> 次</div>
+      <button class="btn btn-help" id="helpBtn" onclick="useHelp()">
+        求助 (<span id="helpLeft">3</span>)
+      </button>
+    </div>
+  </div>
+  <div class="puzzle-wrapper">
+    <div class="puzzle-board" id="puzzleBoard"></div>
+  </div>
+</div>
+
+<!-- ===== 完成弹窗 ===== -->
+<div class="modal-overlay" id="completeModal">
+  <div class="modal">
+    <h2>拼图完成！</h2>
+    <p>恭喜你解锁了这张图片</p>
+    <img id="completeImg">
+    <button class="btn btn-primary" onclick="closeModal()">返回图库</button>
+  </div>
+</div>
+
+<!-- ===== 预览弹窗 ===== -->
+<div class="preview-overlay" id="previewOverlay" onclick="this.classList.remove('active')">
+  <img id="previewImg">
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const GRID = 16;
+const TOTAL = GRID * GRID;
+
+let currentImage = null;
+let board = [];          // board[cellIndex] = pieceIndex (哪块碎片在这个位置)
+let selectedCell = -1;
+let correctCount = 0;
+let swapCountVal = 0;
+let helpCount = 3;
+let loadedImage = null;  // 缓存的 Image 对象
+let cellSize = 0;
+let unlockedImages = JSON.parse(localStorage.getItem('puzzle_unlocked') || '[]');
+
+// ===== 工具 =====
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ===== 上传 =====
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+fileInput.addEventListener('change', e => uploadFiles(e.target.files));
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  uploadFiles(e.dataTransfer.files);
+});
+
+async function uploadFiles(files) {
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append('image', file);
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) toast('上传成功!');
+      else toast('上传失败');
+    } catch { toast('上传出错'); }
+  }
+  loadGallery();
+}
+
+// ===== 图库 =====
+async function loadGallery() {
+  const res = await fetch('/api/images');
+  const images = await res.json();
+  const gallery = document.getElementById('gallery');
+  gallery.innerHTML = '';
+
+  if (images.length === 0) {
+    gallery.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#555;padding:60px 0;">还没有图片，请先上传</div>';
+    return;
+  }
+
+  images.forEach(img => {
+    const isUnlocked = unlockedImages.includes(img.name);
+    const item = document.createElement('div');
+    item.className = 'gallery-item' + (isUnlocked ? ' unlocked' : '');
+    item.innerHTML = `
+      <img src="${img.url}" loading="lazy">
+      <div class="lock-overlay">
+        <div>🔒</div>
+        <div class="lock-label">点击开始拼图</div>
+      </div>
+    `;
+    item.onclick = () => {
+      if (isUnlocked) {
+        document.getElementById('previewImg').src = img.url;
+        document.getElementById('previewOverlay').classList.add('active');
+      } else {
+        startPuzzle(img);
+      }
+    };
+    gallery.appendChild(item);
+  });
+}
+
+// ===== 拼图核心 =====
+function startPuzzle(img) {
+  currentImage = img;
+  selectedCell = -1;
+  correctCount = 0;
+  swapCountVal = 0;
+  helpCount = 3;
+
+  // 生成乱序 board: board[i] = 碎片编号
+  board = Array.from({ length: TOTAL }, (_, i) => i);
+  // Fisher-Yates shuffle，保证不是已经完成的
+  do { shuffle(board); } while (countCorrect() === TOTAL);
+
+  document.getElementById('galleryPage').classList.add('hidden');
+  document.getElementById('puzzlePage').classList.add('active');
+  document.getElementById('refThumb').src = img.url;
+
+  const image = new Image();
+  image.crossOrigin = 'anonymous';
+  image.onload = () => {
+    loadedImage = image;
+    buildBoard();
+    correctCount = countCorrect();
+    updateStats();
+  };
+  image.src = img.url;
+}
+
+function buildBoard() {
+  const wrapper = document.querySelector('.puzzle-wrapper');
+  const maxW = wrapper.clientWidth - 32;
+  const maxH = wrapper.clientHeight - 32;
+  const boardSize = Math.min(maxW, maxH, 720);
+  cellSize = boardSize / GRID;
+
+  const boardEl = document.getElementById('puzzleBoard');
+  boardEl.style.gridTemplateColumns = `repeat(${GRID}, ${cellSize}px)`;
+  boardEl.style.gridTemplateRows = `repeat(${GRID}, ${cellSize}px)`;
+  boardEl.innerHTML = '';
+
+  for (let i = 0; i < TOTAL; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'puzzle-cell';
+    cell.style.width = cellSize + 'px';
+    cell.style.height = cellSize + 'px';
+    cell.dataset.cellIndex = i;
+    setCellBackground(cell, board[i]);
+    if (board[i] === i) cell.classList.add('correct');
+
+    cell.onclick = () => onCellClick(i);
+    boardEl.appendChild(cell);
+  }
+}
+
+function setCellBackground(cell, pieceIdx) {
+  const img = loadedImage;
+  const srcCol = pieceIdx % GRID;
+  const srcRow = Math.floor(pieceIdx / GRID);
+  const sw = img.naturalWidth / GRID;
+  const sh = img.naturalHeight / GRID;
+
+  // 用 background-position 方式 - 性能更好
+  cell.style.backgroundImage = `url(${currentImage.url})`;
+  cell.style.backgroundSize = `${cellSize * GRID}px ${cellSize * GRID}px`;
+  cell.style.backgroundPosition = `-${srcCol * cellSize}px -${srcRow * cellSize}px`;
+}
+
+function onCellClick(cellIdx) {
+  // 如果已经正确，不允许操作
+  if (board[cellIdx] === cellIdx) return;
+
+  const cells = document.querySelectorAll('.puzzle-cell');
+
+  if (selectedCell === -1) {
+    // 选中第一块
+    selectedCell = cellIdx;
+    cells[cellIdx].classList.add('selected');
+  } else if (selectedCell === cellIdx) {
+    // 取消选中
+    cells[cellIdx].classList.remove('selected');
+    selectedCell = -1;
+  } else {
+    // 交换两块
+    const a = selectedCell;
+    const b = cellIdx;
+    cells[a].classList.remove('selected');
+
+    // 交换 board 数据
+    [board[a], board[b]] = [board[b], board[a]];
+    swapCountVal++;
+
+    // 交换视觉
+    setCellBackground(cells[a], board[a]);
+    setCellBackground(cells[b], board[b]);
+
+    // 动画
+    cells[a].classList.add('swapping');
+    cells[b].classList.add('swapping');
+    setTimeout(() => {
+      cells[a].classList.remove('swapping');
+      cells[b].classList.remove('swapping');
+    }, 300);
+
+    // 检查正确性
+    cells[a].classList.toggle('correct', board[a] === a);
+    cells[b].classList.toggle('correct', board[b] === b);
+
+    selectedCell = -1;
+    correctCount = countCorrect();
+    updateStats();
+
+    if (correctCount === TOTAL) {
+      puzzleComplete();
+    }
+  }
+}
+
+function countCorrect() {
+  let c = 0;
+  for (let i = 0; i < TOTAL; i++) {
+    if (board[i] === i) c++;
+  }
+  return c;
+}
+
+function updateStats() {
+  document.getElementById('correctCount').textContent = correctCount;
+  document.getElementById('progressFill').style.width = (correctCount / TOTAL * 100) + '%';
+  document.getElementById('swapCount').textContent = swapCountVal;
+  document.getElementById('helpLeft').textContent = helpCount;
+  document.getElementById('helpBtn').disabled = helpCount <= 0;
+}
+
+// ===== 求助：把一个不在正确位置的碎片放到正确位置 =====
+function useHelp() {
+  if (helpCount <= 0) return;
+
+  // 找一个不在正确位置的碎片
+  const wrong = [];
+  for (let i = 0; i < TOTAL; i++) {
+    if (board[i] !== i) wrong.push(i);
+  }
+  if (wrong.length === 0) return;
+
+  // 随机选一个位置 target，把应该在 target 的碎片放回去
+  const target = wrong[Math.floor(Math.random() * wrong.length)];
+  // 找到碎片 target 当前在哪
+  const from = board.indexOf(target);
+
+  helpCount--;
+
+  // 交换
+  [board[target], board[from]] = [board[from], board[target]];
+
+  const cells = document.querySelectorAll('.puzzle-cell');
+  setCellBackground(cells[target], board[target]);
+  setCellBackground(cells[from], board[from]);
+
+  cells[target].classList.add('correct', 'swapping');
+  cells[from].classList.toggle('correct', board[from] === from);
+  cells[from].classList.add('swapping');
+
+  setTimeout(() => {
+    cells[target].classList.remove('swapping');
+    cells[from].classList.remove('swapping');
+  }, 300);
+
+  // 清除选中状态
+  if (selectedCell !== -1) {
+    cells[selectedCell].classList.remove('selected');
+    selectedCell = -1;
+  }
+
+  correctCount = countCorrect();
+  updateStats();
+  toast('求助成功！自动归位了1块');
+
+  if (correctCount === TOTAL) puzzleComplete();
+}
+
+// ===== 完成 =====
+function puzzleComplete() {
+  if (!unlockedImages.includes(currentImage.name)) {
+    unlockedImages.push(currentImage.name);
+    localStorage.setItem('puzzle_unlocked', JSON.stringify(unlockedImages));
+  }
+  setTimeout(() => {
+    document.getElementById('completeImg').src = currentImage.url;
+    document.getElementById('completeModal').classList.add('active');
+  }, 600);
+}
+
+function closeModal() {
+  document.getElementById('completeModal').classList.remove('active');
+  backToGallery();
+}
+
+function backToGallery() {
+  document.getElementById('puzzlePage').classList.remove('active');
+  document.getElementById('galleryPage').classList.remove('hidden');
+  loadGallery();
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+// ===== 初始化 =====
+loadGallery();
+</script>
+</body>
+</html>
