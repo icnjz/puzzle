@@ -1,5 +1,12 @@
 {
+  "functions": {
+    "api/upload.js": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" }
+    { "source": "/api/upload", "destination": "/api/upload" },
+    { "source": "/api/images", "destination": "/api/images" },
+    { "source": "/api/delete", "destination": "/api/delete" }
   ]
 }
